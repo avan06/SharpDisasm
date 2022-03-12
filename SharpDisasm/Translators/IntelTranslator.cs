@@ -209,7 +209,7 @@ namespace SharpDisasm.Translators
             }
 
             /* print the instruction mnemonic */
-            Content.AppendFormat("{0}", Udis86.udis86.ud_lookup_mnemonic(insn.Mnemonic));
+            Content.AppendFormat("{0}", insn.Mnemonic);
 
             if (insn.Operands.Length > 0 && insn.Operands[0].Type != ud_type.UD_NONE)
             {
@@ -232,13 +232,13 @@ namespace SharpDisasm.Translators
                     {
                         switch (insn.Mnemonic)
                         {
-                            case ud_mnemonic_code.UD_Ircl:
-                            case ud_mnemonic_code.UD_Irol:
-                            case ud_mnemonic_code.UD_Iror:
-                            case ud_mnemonic_code.UD_Ircr:
-                            case ud_mnemonic_code.UD_Ishl:
-                            case ud_mnemonic_code.UD_Ishr:
-                            case ud_mnemonic_code.UD_Isar:
+                            case "rcl":
+                            case "rol":
+                            case "ror":
+                            case "rcr":
+                            case "shl":
+                            case "shr":
+                            case "sar":
                                 cast = 1;
                                 break;
                             default: break;

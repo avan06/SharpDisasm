@@ -51,7 +51,7 @@ namespace SharpDisasm.Udis86
     public enum ud_operand_code {
         OP_NONE,
 
-        OP_A,      OP_E,      OP_M,       OP_G,       
+        OP_A,      OP_E,      OP_M,       OP_G,
         OP_I,      OP_F,
 
         OP_R0,     OP_R1,     OP_R2,      OP_R3,

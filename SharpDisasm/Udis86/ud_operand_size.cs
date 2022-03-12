@@ -56,7 +56,6 @@ namespace SharpDisasm.Udis86
          *  that they maybe used interchangeably in the internals. Modifying them
          *  will most certainly break things!
          */
-
         SZ_NA = 0,
         SZ_Z = 1,
         SZ_V = 2,
@@ -76,7 +75,6 @@ namespace SharpDisasm.Udis86
         SZ_O = 12,
         SZ_DQ = 128, // double quad
         SZ_QQ = 256, // quad quad
-
 
         /*
          * complex size types, that encode sizes for operands

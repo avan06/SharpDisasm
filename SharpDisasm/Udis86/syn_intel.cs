@@ -195,7 +195,7 @@ namespace SharpDisasm.Udis86
             }
 
             /* print the instruction mnemonic */
-            ud_asmprintf(ref u, "{0}", udis86.ud_lookup_mnemonic(u.mnemonic));
+            ud_asmprintf(ref u, "{0}", u.mnemonic);
 
             if (u.operand[0].type != ud_type.UD_NONE)
             {
@@ -216,13 +216,13 @@ namespace SharpDisasm.Udis86
                     {
                         switch (u.mnemonic)
                         {
-                            case ud_mnemonic_code.UD_Ircl:
-                            case ud_mnemonic_code.UD_Irol:
-                            case ud_mnemonic_code.UD_Iror:
-                            case ud_mnemonic_code.UD_Ircr:
-                            case ud_mnemonic_code.UD_Ishl:
-                            case ud_mnemonic_code.UD_Ishr:
-                            case ud_mnemonic_code.UD_Isar:
+                            case "rcl":
+                            case "rol":
+                            case "ror":
+                            case "rcr":
+                            case "shl":
+                            case "shr":
+                            case "sar":
                                 cast = 1;
                                 break;
                             default: break;

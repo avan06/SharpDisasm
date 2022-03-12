@@ -67,7 +67,7 @@ namespace SharpDisasm
         /// <summary>
         /// Mnemonic
         /// </summary>
-        public SharpDisasm.Udis86.ud_mnemonic_code Mnemonic { get; private set; }
+        public string Mnemonic { get; private set; }
 
         /// <summary>
         /// The instruction operands (maximum 3)
@@ -198,7 +198,7 @@ namespace SharpDisasm
             // Copy the instruction bytes
             if (keepBinary)
             {
-				this.Bytes = u.inp_buf.CopyToBytes(u.inp_buf_index - this.Length, this.Length);
+                this.Bytes = u.inp_buf.CopyToBytes(u.inp_buf_index - this.Length, this.Length);
             }
 
             if (u.error > 0)
@@ -206,7 +206,7 @@ namespace SharpDisasm
                 this.Error = true;
                 this.ErrorMessage = u.errorMessage;
             }
-            else if (this.Mnemonic == Udis86.ud_mnemonic_code.UD_Iinvalid)
+            else if (this.Mnemonic == "invalid")
             {
                 this.Error = true;
                 this.ErrorMessage = "Invalid instruction";

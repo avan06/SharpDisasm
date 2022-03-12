@@ -78,7 +78,7 @@ namespace SharpDisasm.Udis86
         public byte dis_mode;
         public UInt64 pc;
         public byte vendor;
-        public ud_mnemonic_code mnemonic;
+        public string mnemonic;
         public ud_operand[] operand = new ud_operand[4];
         public byte error;
         public string errorMessage;
@@ -104,7 +104,8 @@ namespace SharpDisasm.Udis86
         public byte vex_b2;
         public byte primary_opcode;
         public ud_itab_entry itab_entry;
-        public ud_lookup_table_list_entry le;
+        public ushort entry_id;
+        public ud_table_type entry_type;
 
         /// <summary>
         /// Initializes a new instance of the <see cref="ud"/> class.

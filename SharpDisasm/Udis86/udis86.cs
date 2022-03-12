@@ -67,7 +67,7 @@ namespace SharpDisasm.Udis86
         {
             u = new ud();
             ud_set_mode(ref u, 16);
-            u.mnemonic = ud_mnemonic_code.UD_Iinvalid;
+            u.mnemonic = "invalid";
             ud_set_pc(ref u, 0);
             //#ifndef __UD_STANDALONE__
             //  ud_set_input_file(u, stdin);
@@ -393,36 +393,10 @@ namespace SharpDisasm.Udis86
          *    Return the current instruction mnemonic.
          * =============================================================================
          */
-        static ud_mnemonic_code
+        static string
         ud_insn_mnemonic(ref ud u)
         {
             return u.mnemonic;
-        }
-
-
-        /* =============================================================================
-         * ud_lookup_mnemonic
-         *    Looks up mnemonic code in the mnemonic string table.
-         *    Returns NULL if the mnemonic code is invalid.
-         * =============================================================================
-         */
-        /// <summary>
-        /// Looks up mnemonic code in the mnemonic string table.
-        /// Returns NULL if the mnemonic code is invalid.
-        /// </summary>
-        /// <param name="c"></param>
-        /// <returns></returns>
-        public static string
-        ud_lookup_mnemonic(ud_mnemonic_code c)
-        {
-            if (c < ud_mnemonic_code.UD_MAX_MNEMONIC_CODE)
-            {
-                return InstructionTables.ud_mnemonics_str[(int)c];
-            }
-            else
-            {
-                return null;
-            }
         }
 
 

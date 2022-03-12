@@ -50,10 +50,9 @@ namespace SharpDisasm.Tests
                                 where insn.Length > 5
                                 select insn).Count(), "There should be 4 instructions that are larger than 5 bytes");
 
-            Assert.AreEqual("mov rax, [0x800000000000]", (from insn in results
-                                                          where insn.Length == 10
-                                                          select insn).First().ToString());
-
+            Assert.IsTrue((from insn in results
+                          where insn.Length == 10
+                          select insn).First().ToString().Contains("mov rax, [0x800000000000]"));
 
             foreach (SharpDisasm.Instruction instruction in results)
             {
@@ -82,7 +81,7 @@ namespace SharpDisasm.Tests
             foreach (var ins in disam.Disassemble())
             {
                 Assert.IsFalse(ins.Error);
-                Assert.AreNotEqual(Udis86.ud_mnemonic_code.UD_Iinvalid, ins.Mnemonic);
+                Assert.AreNotEqual("invalid", ins.Mnemonic);
             }
 
             // AMD only
@@ -272,7 +271,7 @@ namespace SharpDisasm.Tests
                     0xA1, 0x37
                 },
                ArchitectureMode.x86_32, 0, false);
-            Assert.AreEqual(disasm.Disassemble().Last().Mnemonic, Udis86.ud_mnemonic_code.UD_Iinvalid);
+            Assert.AreEqual(disasm.Disassemble().Last().Mnemonic, "invalid");
             foreach (var ins in disasm.Disassemble())
             {
                 Assert.IsTrue(ins.Error);
@@ -287,7 +286,7 @@ namespace SharpDisasm.Tests
                     0xc4, 0xdb, 0x04
                 },
                 ArchitectureMode.x86_32, 0, false);
-            Assert.AreEqual(disasm.Disassemble().Last().Mnemonic, Udis86.ud_mnemonic_code.UD_Iinvalid);
+            Assert.AreEqual(disasm.Disassemble().Last().Mnemonic, "invalid");
             foreach (var ins in disasm.Disassemble())
             {
                 Assert.IsTrue(ins.Error);

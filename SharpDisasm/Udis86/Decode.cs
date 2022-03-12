@@ -314,19 +314,19 @@ namespace SharpDisasm.Udis86
         int resolve_mnemonic(ref ud u)
         {
             /* resolve 3dnow weirdness. */
-            if (u.mnemonic == ud_mnemonic_code.UD_I3dnow)
+            if (u.mnemonic == "3dnow")
             {
-                u.mnemonic = InstructionTables.ud_itab[u.le.Table[inp_curr(ref u)]].Mnemonic;
+                u.mnemonic = InstructionTables.ud_itab_entrys[InstructionTables.ud_itabs[u.entry_id][inp_curr(ref u)]].Mnemonic;
             }
             /* SWAPGS is only valid in 64bits mode */
-            if (u.mnemonic == ud_mnemonic_code.UD_Iswapgs && u.dis_mode != 64)
+            if (u.mnemonic == "swapgs" && u.dis_mode != 64)
             {
                 u.error = 1;
                 u.errorMessage = "swapgs invalid in 64bits mode\n";
                 return -1;
             }
 
-            if (u.mnemonic == ud_mnemonic_code.UD_Ixchg)
+            if (u.mnemonic == "xchg")
             {
                 if ((u.operand[0].type == ud_type.UD_OP_REG && u.operand[0].@base == ud_type.UD_R_AX &&
                      u.operand[1].type == ud_type.UD_OP_REG && u.operand[1].@base == ud_type.UD_R_AX) ||
@@ -335,14 +335,14 @@ namespace SharpDisasm.Udis86
                 {
                     u.operand[0].type = ud_type.UD_NONE;
                     u.operand[1].type = ud_type.UD_NONE;
-                    u.mnemonic = ud_mnemonic_code.UD_Inop;
+                    u.mnemonic = "nop";
                 }
             }
 
-            if (u.mnemonic == ud_mnemonic_code.UD_Inop && u.pfx_repe != 0)
+            if (u.mnemonic == "nop" && u.pfx_repe != 0)
             {
                 u.pfx_repe = 0;
-                u.mnemonic = ud_mnemonic_code.UD_Ipause;
+                u.mnemonic = "pause";
             }
             return 0;
         }
@@ -955,24 +955,11 @@ namespace SharpDisasm.Udis86
         int
         decode_operands(ref ud u)
         {
-            if (decode_operand(ref u, ref u.operand[0],
-                              u.itab_entry.Operand1.type,
-                              u.itab_entry.Operand1.size) != ud_type.UD_NONE)
-            {
-                if (decode_operand(ref u, ref u.operand[1],
-                                  u.itab_entry.Operand2.type,
-                                  u.itab_entry.Operand2.size) != ud_type.UD_NONE)
-                {
-                    if (decode_operand(ref u, ref u.operand[2],
-                                      u.itab_entry.Operand3.type,
-                                      u.itab_entry.Operand3.size) != ud_type.UD_NONE)
-                    {
-                        decode_operand(ref u, ref u.operand[3],
-                            u.itab_entry.Operand4.type,
-                            u.itab_entry.Operand4.size);
-                    }
-                }
-            }
+            if (decode_operand(ref u, ref u.operand[0], u.itab_entry.Operand1.type, u.itab_entry.Operand1.size) == ud_type.UD_NONE) return 0;
+            if (decode_operand(ref u, ref u.operand[1], u.itab_entry.Operand2.type, u.itab_entry.Operand2.size) == ud_type.UD_NONE) return 0;
+            if (decode_operand(ref u, ref u.operand[2], u.itab_entry.Operand3.type, u.itab_entry.Operand3.size) == ud_type.UD_NONE) return 0;
+            decode_operand(ref u, ref u.operand[3], u.itab_entry.Operand4.type, u.itab_entry.Operand4.size);
+
             return 0;
         }
 
@@ -992,7 +979,7 @@ namespace SharpDisasm.Udis86
             u.pfx_repe = 0;
             u.pfx_rex = 0;
             u.pfx_str = 0;
-            u.mnemonic = ud_mnemonic_code.UD_Inone;
+            u.mnemonic = "none";
             u.itab_entry = new ud_itab_entry();
             u.have_modrm = 0;
             u.br_far = 0;
@@ -1115,7 +1102,7 @@ namespace SharpDisasm.Udis86
         int decode_insn(ref ud u, ushort ptr)
         {
             Debug.Assert((ptr & 0x8000) == 0);
-            u.itab_entry = InstructionTables.ud_itab[ptr];
+            u.itab_entry = InstructionTables.ud_itab_entrys[ptr];
             u.mnemonic = u.itab_entry.Mnemonic;
             return (resolve_pfx_str(ref u) == 0 &&
                     resolve_mode(ref u) == 0 &&
@@ -1139,17 +1126,17 @@ namespace SharpDisasm.Udis86
         decode_3dnow(ref ud u)
         {
             ushort ptr;
-            Debug.Assert(u.le.Type == ud_table_type.UD_TAB__OPC_3DNOW);
-            Debug.Assert(u.le.Table[0xc] != 0);
-            decode_insn(ref u, u.le.Table[0xc]);
+            Debug.Assert(u.entry_type == ud_table_type.UD_TAB__OPC_3DNOW);
+            Debug.Assert(InstructionTables.ud_itabs[u.entry_id][0xc] != 0);
+            decode_insn(ref u, InstructionTables.ud_itabs[u.entry_id][0xc]);
             inp_next(ref u);
             if (u.error > 0)
             {
                 return -1;
             }
-            ptr = u.le.Table[inp_curr(ref u)];
+            ptr = InstructionTables.ud_itabs[u.entry_id][inp_curr(ref u)];
             Debug.Assert((ptr & 0x8000) == 0);
-            u.mnemonic = InstructionTables.ud_itab[ptr].Mnemonic;
+            u.mnemonic = InstructionTables.ud_itab_entrys[ptr].Mnemonic;
             return 0;
         }
 
@@ -1170,11 +1157,11 @@ namespace SharpDisasm.Udis86
                 pfx = u.pfx_opr;
             }
             idx = (byte)(((pfx & 0xf) + 1) / 2);
-            if (u.le.Table[idx] == 0)
+            if (InstructionTables.ud_itabs[u.entry_id][idx] == 0)
             {
                 idx = 0;
             }
-            if (idx > 0 && u.le.Table[idx] != 0)
+            if (idx > 0 && InstructionTables.ud_itabs[u.entry_id][idx] != 0)
             {
                 /*
                  * "Consume" the prefix as a part of the opcode, so it is no
@@ -1191,7 +1178,7 @@ namespace SharpDisasm.Udis86
                     u.pfx_opr = 0;
                 }
             }
-            return decode_ext(ref u, u.le.Table[idx]);
+            return decode_ext(ref u, InstructionTables.ud_itabs[u.entry_id][idx]);
         }
 
 
@@ -1231,7 +1218,7 @@ namespace SharpDisasm.Udis86
                     index = (byte)(0x1 | ((u.vex_b1 & 0x3) << 2));
                 }
             }
-            return decode_ext(ref u, u.le.Table[index]);
+            return decode_ext(ref u, InstructionTables.ud_itabs[u.entry_id][index]);
         }
 
 
@@ -1247,13 +1234,14 @@ namespace SharpDisasm.Udis86
             {
                 return decode_insn(ref u, ptr);
             }
-            u.le = InstructionTables.ud_lookup_table_list[(~0x8000 & ptr)];
-            if (u.le.Type == ud_table_type.UD_TAB__OPC_3DNOW)
+            u.entry_id = (ushort)(~0x8000 & ptr); //u.le = InstructionTables.ud_lookup_table_list[(~0x8000 & ptr)];
+            u.entry_type = InstructionTables.ud_lookup_table_type_dict[u.entry_id];
+            if (u.entry_type == ud_table_type.UD_TAB__OPC_3DNOW)
             {
                 return decode_3dnow(ref u);
             }
 
-            switch (u.le.Type)
+            switch (u.entry_type)
             {
                 case ud_table_type.UD_TAB__OPC_MOD:
                     /* !11 = 0, 11 = 1 */
@@ -1278,7 +1266,7 @@ namespace SharpDisasm.Udis86
                     if (u.vendor == UD_VENDOR_ANY)
                     {
                         /* choose a valid entry */
-                        idx = (byte)((u.le.Table[idx] != 0) ? 0 : 1);
+                        idx = (byte)((InstructionTables.ud_itabs[u.entry_id][idx] != 0) ? 0 : 1);
                     }
                     else if (u.vendor == UD_VENDOR_AMD)
                     {
@@ -1313,7 +1301,7 @@ namespace SharpDisasm.Udis86
                     break;
             }
 
-            return decode_ext(ref u, u.le.Table[idx]);
+            return decode_ext(ref u, InstructionTables.ud_itabs[u.entry_id][idx]);
         }
 
 
@@ -1321,9 +1309,9 @@ namespace SharpDisasm.Udis86
         decode_opcode(ref ud u)
         {
             ushort ptr;
-            Debug.Assert(u.le.Type == ud_table_type.UD_TAB__OPC_TABLE);
+            Debug.Assert(u.entry_type == ud_table_type.UD_TAB__OPC_TABLE);
             if (u.error != 0) return u.error;
-            ptr = u.le.Table[inp_curr(ref u)];
+            ptr = InstructionTables.ud_itabs[u.entry_id][inp_curr(ref u)];
             return decode_ext(ref u, ptr);
         }
 
@@ -1336,7 +1324,8 @@ namespace SharpDisasm.Udis86
         {
             inp_start(ref u);
             clear_insn(ref u);
-            u.le = InstructionTables.ud_lookup_table_list[0];
+            u.entry_id = 0; //u.le = InstructionTables.ud_lookup_table_list[0];
+            u.entry_type = InstructionTables.ud_lookup_table_type_dict[u.entry_id];
             u.error = (byte)((decode_prefixes(ref u) == -1 ||
                        decode_opcode(ref u) == -1 ||
                        u.error == 1) ? 1 : 0);
@@ -1346,7 +1335,7 @@ namespace SharpDisasm.Udis86
                 /* clear out the decode data. */
                 clear_insn(ref u);
                 /* mark the sequence of bytes as invalid. */
-                u.itab_entry = InstructionTables.ud_itab[0]; /* entry 0 is invalid */
+                u.itab_entry = InstructionTables.ud_itab_entrys[0]; /* entry 0 is invalid */
                 u.mnemonic = u.itab_entry.Mnemonic;
             }
 

@@ -232,15 +232,15 @@ namespace SharpDisasm.Translators
             /* special instructions */
             switch (u.Mnemonic)
             {
-                case Udis86.ud_mnemonic_code.UD_Iretf:
+                case "retf":
                     Content.Append("lret ");
                     size = -1;
                     break;
-                case Udis86.ud_mnemonic_code.UD_Idb:
+                case "db":
                     Content.AppendFormat(".byte 0x{0:x2}", u.Operands[0].LvalByte);
                     return;
-                case Udis86.ud_mnemonic_code.UD_Ijmp:
-                case Udis86.ud_mnemonic_code.UD_Icall:
+                case "jmp":
+                case "call":
                     if (u.br_far != 0)
                     {
                         Content.Append("l");
@@ -250,11 +250,11 @@ namespace SharpDisasm.Translators
                     {
                         star = true;
                     }
-                    Content.AppendFormat("{0}", Udis86.udis86.ud_lookup_mnemonic(u.Mnemonic));
+                    Content.AppendFormat("{0}", u.Mnemonic);
                     break;
-                case Udis86.ud_mnemonic_code.UD_Ibound:
-                case Udis86.ud_mnemonic_code.UD_Ienter:
-                    Content.AppendFormat("{0}", Udis86.udis86.ud_lookup_mnemonic(u.Mnemonic));
+                case "bound":
+                case "enter":
+                    Content.AppendFormat("{0}", u.Mnemonic);
                     if (u.Operands.Length > 0 && u.Operands[0].Type != Udis86.ud_type.UD_NONE)
                     {
                         Content.Append(" ");
@@ -267,7 +267,7 @@ namespace SharpDisasm.Translators
                     }
                     return;
                 default:
-                    Content.AppendFormat("{0}", Udis86.udis86.ud_lookup_mnemonic(u.Mnemonic));
+                    Content.AppendFormat("{0}", u.Mnemonic);
                     break;
             }
 

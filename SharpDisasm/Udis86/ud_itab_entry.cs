@@ -39,7 +39,6 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 
-
 namespace SharpDisasm.Udis86
 {
     #pragma warning disable 1591
@@ -48,32 +47,38 @@ namespace SharpDisasm.Udis86
     /// </summary>
     public class ud_itab_entry
     {
-        public readonly ud_mnemonic_code Mnemonic;
+        public readonly string Mnemonic;
         public readonly ud_itab_entry_operand Operand1;
         public readonly ud_itab_entry_operand Operand2;
         public readonly ud_itab_entry_operand Operand3;
         public readonly ud_itab_entry_operand Operand4;
         public readonly UInt32 Prefix;
 
-        internal ud_itab_entry()
-        {
-        }
+        internal ud_itab_entry() { }
 
-        internal ud_itab_entry(
-            ud_mnemonic_code mnemonic,
-            ud_itab_entry_operand operand1,
-            ud_itab_entry_operand operand2,
-            ud_itab_entry_operand operand3,
-            ud_itab_entry_operand operand4,
-            UInt32 prefix
-            )
+        internal ud_itab_entry(string mnemonic) : this(mnemonic, null, BitOps.P_none) { }
+        internal ud_itab_entry(string mnemonic, UInt32 prefix = BitOps.P_none) : this(mnemonic, null, prefix) { }
+        internal ud_itab_entry(string mnemonic, string operand = null, UInt32 prefix = BitOps.P_none)
         {
             this.Mnemonic = mnemonic;
-            this.Operand1 = operand1;
-            this.Operand2 = operand2;
-            this.Operand3 = operand3;
-            this.Operand4 = operand4;
             this.Prefix = prefix;
+            ud_itab_entry_operand NONE = InstructionTables.OpDefDict["NONE"];
+            if (operand == null || operand.Length == 0)
+            {
+                Operand1 = NONE;
+                Operand2 = NONE;
+                Operand3 = NONE;
+                Operand4 = NONE;
+            }
+            else
+            {
+                string[] operands = operand.Split(';');
+
+                Operand1 = operands.Length > 0 ? InstructionTables.OpDefDict[operands[0]] : NONE;
+                Operand2 = operands.Length > 1 ? InstructionTables.OpDefDict[operands[1]] : NONE;
+                Operand3 = operands.Length > 2 ? InstructionTables.OpDefDict[operands[2]] : NONE;
+                Operand4 = operands.Length > 3 ? InstructionTables.OpDefDict[operands[3]] : NONE;
+            }
         }
     }
     #pragma warning restore 1591

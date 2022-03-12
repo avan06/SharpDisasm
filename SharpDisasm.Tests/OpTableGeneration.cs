@@ -11,6 +11,7 @@ namespace SharpDisasm.Tests
     [TestClass]
     public class OpTableGeneration
     {
+        private static string pushIndent = "";
         #region GENERATOR
         // copied from GENERATOR region in OpTable.tt
 
@@ -339,10 +340,10 @@ namespace SharpDisasm.Tests
                     return String.Format("{0:x2}", Int32.Parse(opc, System.Globalization.NumberStyles.HexNumber));
                 }
             }
-            public static List<string> GetLabels()
+            public static List<(string name, string desc)> GetLabels()
             {
                 return (from kv in _TableInfo
-                        select kv.Value.Name).ToList();
+                        select (kv.Value.Name, kv.Key)).ToList();
             }
         }
 
@@ -791,7 +792,7 @@ namespace SharpDisasm.Tests
             private void Log(string s)
             {
                 if (LogEnabled)
-                    System.IO.File.AppendAllText("opcodeTables.log", s + "\r\n");
+                    System.IO.File.AppendAllText("opcodeTables.log", s + "\n");
             }
 
             /// <summary>
@@ -1090,83 +1091,81 @@ namespace SharpDisasm.Tests
             /// </summary>
             /// <param name="table"></param>
             /// <param name="isGlobal"></param>
-            private void GenOpcodeTable(UdOpcodeTable table, bool isGlobal = false)
+            private void GenOpcodeTable(UdOpcodeTable table)
             {
-                Write("\r\n");
-                //if (!isGlobal)
-                //    Write("static ");
-                Write("internal static readonly ushort[] {0} = {{\r\n", GetTableName(table));
+                Write(pushIndent + "new ushort[] {{ //{0}\n", GetTableName(table));
                 for (var i = 0; i < table.Size; i++)
                 {
-                    if (i > 0 && i % 4 == 0)
-                        Write("\r\n");
-                    if (i % 4 == 0)
-                        Write("  /* {0:x2} */", i);
+                    if (i > 0 && i % 4 == 0) Write("\n");
+                    if (i % 4 == 0) Write(pushIndent + "  /* {0:x2} */", i);
                     var e = table.EntryAt(i);
-                    if (e == null)
-                        Write("{0,12},", "INVALID");
-                    else if (e is UdOpcodeTable)
-                        Write("{0,12},", String.Format("0x8000|{0}", GetTableIndex(e as UdOpcodeTable)));
-                    else if (e is UdInsnDef)
-                        Write("{0,12},", GetInsnIndex(e as UdInsnDef));
+                    if (e == null) Write("{0,12},", "INVALID");
+                    else if (e is UdOpcodeTable) Write("{0,12},", String.Format("0x8000|{0}", GetTableIndex(e as UdOpcodeTable)));
+                    else if (e is UdInsnDef) Write("{0,12},", GetInsnIndex(e as UdInsnDef));
                 }
-                Write("\r\n");
-                Write("}};\r\n");
+                Write("\n");
+                Write(pushIndent + "},\n\n");
             }
 
             public void GenOpcodeTables()
             {
+                pushIndent = "    ";
+                Write(pushIndent + "internal static readonly ushort[][] ud_itabs = new ushort[][]\n");
+                Write(pushIndent + "{\n");
+                pushIndent = "        ";
                 var tables = _tables.GetTableList();
-                foreach (var table in tables)
-                    GenOpcodeTable(table, table == _tables.Root);
+                foreach (var table in tables) GenOpcodeTable(table);
+                pushIndent = "    ";
+                Write(pushIndent + "};\n");
             }
 
             public void GenOpcodeTablesLookupIndex()
             {
-                Write("\r\n");
-                Write("internal static readonly ud_lookup_table_list_entry[] ud_lookup_table_list = new ud_lookup_table_list_entry[] {{\r\n");
+                Write(pushIndent + "internal static readonly (ud_table_type ud_type, ushort[] ids)[] ud_table_type_ids = new (ud_table_type, ushort[])[]\n");
+                Write(pushIndent + "{\n");
+                Dictionary<string, List<ushort>> tableDict = new Dictionary<string, List<ushort>>();
                 foreach (var table in _tables.GetTableList())
                 {
-                    var f0 = GetTableName(table);
-                    var f1 = table.Label;// NameOfTable(GroupTableMeta[i]["type"]);
-                    var f2 = String.Format("\"{0}\"", table.Meta);
-                    // /* 000 */ new ud_lookup_table_list_entry( ud_itab__0, ud_table_type.UD_TAB__OPC_TABLE, "table0" ),
-                    Write("    /* {0:D3} */ new ud_lookup_table_list_entry( {1}, ud_table_type.{2}, {3} ),\r\n", GetTableIndex(table), f0, f1, f2);
+                    var label = table.Label;
+                    ushort index = (ushort)GetTableIndex(table);
+                    if (!tableDict.ContainsKey(label)) tableDict[label] = new List<ushort>();
+                    tableDict[label].Add(index);
                 }
-                Write("}};");
+
+                pushIndent = "        ";
+                Write(String.Join(",\n", (from l in UdOpcodeTable.GetLabels()
+                                            select string.Format(pushIndent + "(ud_table_type.{0}, new ushort[] {{{1}}})", l.name, string.Join(", ", tableDict[l.name]))).ToArray()));
+                pushIndent = "    ";
+                Write(pushIndent + "\n");
+                Write(pushIndent + "};\n");
+                Write(pushIndent + "internal static readonly Dictionary<ushort, ud_table_type> ud_lookup_table_type_dict = new Dictionary<ushort, ud_table_type>();\n");
             }
 
             public void GenInsnTable()
             {
-                Write("internal static readonly ud_itab_entry[] ud_itab = new ud_itab_entry[]\r\n{{\r\n");
+                Write(pushIndent + "internal static readonly List<ud_itab_entry> ud_itab_entrys = new List<ud_itab_entry>()\n");
+                Write(pushIndent + "{\n");
+                pushIndent = "        ";
                 foreach (var e in _tables.GetInsnList())
                 {
-                    string[] opr_c = new string[] { "O_NONE", "O_NONE", "O_NONE", "O_NONE" }; // OpDefs
+                    string opr_s = string.Join(";", e.Operands);
                     List<string> pfx_c = new List<string>();
-                    var opr = e.Operands;
-                    for (var i = 0; i < Math.Min(4, opr.Count); i++)
-                    {
-                        if (!OperandDict.ContainsKey(opr[i]))
-                            Error(String.Format("Error: invalid operand declaration: {0}", opr[i]));
-                        opr_c[i] = "O_" + opr[i];
-                    }
-                    var opr_s = String.Format("OpDefs.{0}, OpDefs.{1}, OpDefs.{2}, OpDefs.{3}", opr_c[0], opr_c[1], opr_c[2], opr_c[3]);
 
                     foreach (var p in e.Prefixes)
                     {
                         if (!PrefixDict.ContainsKey(p))
                             Error(String.Format("Error: invalid prefix specification: {0}", p));
-                        else
-                            pfx_c.Add("BitOps." + PrefixDict[p]);
+                        else pfx_c.Add("BitOps." + PrefixDict[p]);
                     }
-                    if (e.Prefixes.Count == 0)
-                        pfx_c.Add("BitOps.P_none");
-                    var pfx_s = String.Join("|", pfx_c.ToArray());
+                    var pfx_s = String.Join(" | ", pfx_c.ToArray());
+                    opr_s = opr_s.Length > 0 ? ", \"" + opr_s + "\"" : "";
+                    pfx_s = pfx_s.Length > 0 ? ", " + pfx_s : "";
 
-                    Write("    /* {0:D4} */ new ud_itab_entry( ud_mnemonic_code.UD_I{1}, {2}, {3} ),\r\n", GetInsnIndex(e), e.Mnemonic, opr_s, pfx_s);
+                    Write(pushIndent + "/* {0:D4} */ new ud_itab_entry( \"{1}\"{2}{3} ),\n", GetInsnIndex(e), e.Mnemonic, opr_s, pfx_s);
                 }
 
-                Write("}};\r\n");
+                pushIndent = "    ";
+                Write(pushIndent + "};\n");
             }
 
             public List<String> GetMnemonicsList()
@@ -1175,85 +1174,73 @@ namespace SharpDisasm.Tests
                 return mnemonics.Concat(MnemonicAliases).ToList();
             }
 
-            public void GenMnemonicsList()
-            {
-                var mnemonics = GetMnemonicsList();
-                Write("\r\n\r\n");
-                Write("internal static readonly string[] ud_mnemonics_str = new string[]\r\n{{\r\n");
-                Write(String.Join(",\r\n", (from s in mnemonics select String.Format("    \"{0}\"", s)).ToArray()));
-                Write("\r\n}};\r\n");
-            }
-
             public void GenCSharpCode()
             {
                 #region static class InstructionTables
-                PushIndent("    ");
-                Write("internal static class InstructionTables\r\n{{\r\n");
-                PushIndent("    ");
-                Write("#region Lookup Tables\r\n");
-                Write("public const int INVALID = 0;\r\n");
+                pushIndent = "    ";
+                Write("internal static class InstructionTables\n");
+                Write("{\n");
+                Write(pushIndent + "#region Lookup Tables\n");
+                Write(pushIndent + "public const int INVALID = 0;\n\n");
+
                 GenOpcodeTables();
-                //ClearIndent();
-                Write("#endregion\r\n");
-                Write("\r\n");
-                Write("#region Lookup Table List\r\n");
-                //PushIndent("        ");
+                Write(pushIndent + "#endregion\n\n");
+
+                Write(pushIndent + "#region Lookup Table List\n");
                 GenOpcodeTablesLookupIndex();
-                //ClearIndent();
-                Write("\r\n");
-                Write("#endregion\r\n");
-                Write("\r\n");
-                Write("#region Operand Definitions\r\n");
-                Write("\r\n");
-                Write("/// <summary>\r\n");
-                Write("/// itab entry operand definitions (for readability)\r\n");
-                Write("/// </summary>\r\n");
-                Write("internal static class OpDefs\r\n");
-                Write("{{\r\n");
+                Write(pushIndent + "#endregion\n\n");
+
+                Write(pushIndent + "#region Operand Definitions\n");
+                Write(pushIndent + "/// <summary>\n");
+                Write(pushIndent + "/// itab entry operand definitions (for readability)\n");
+                Write(pushIndent + "/// </summary>\n");
+                Write(pushIndent + "internal static readonly Dictionary<string, ud_itab_entry_operand> OpDefDict = new Dictionary<string, ud_itab_entry_operand>()\n");
+                Write(pushIndent + "{\n");
                 // OpDefs (short-names for operands)
                 var operands = (from k in OperandDict.Keys
                                 orderby k ascending
                                 select k).ToArray();
 
+                pushIndent = "        ";
                 foreach (var op in operands)
                 {
-                    Write("    internal static readonly ud_itab_entry_operand O_{0,-5} = new ud_itab_entry_operand(ud_operand_code.{1,-8}, ud_operand_size.{2,-7});\r\n", op, OperandDict[op][0], OperandDict[op][1]);
+                    Write(pushIndent + "{{{0,-6}, new ud_itab_entry_operand(ud_operand_code.{1,-8}, ud_operand_size.{2,-7})}},\n", "\"" + op + "\"", OperandDict[op][0], OperandDict[op][1]);
                 }
-                Write("}}\r\n");
-                Write("#endregion\r\n");
-                Write("\r\n");
-                Write("#region Instruction Table and Mnemonics\r\n");
+                pushIndent = "    ";
+                Write(pushIndent + "};\n");
+                Write(pushIndent + "#endregion\n\n");
+
+                Write(pushIndent + "#region Instruction Table and Mnemonics\n");
                 GenInsnTable();
-                GenMnemonicsList();
-                Write("#endregion\r\n");
+                Write(pushIndent + "#endregion\n\n");
+
+                Write(pushIndent + "static InstructionTables()\n");
+                Write(pushIndent + "{\n");
+                pushIndent = "        ";
+                Write(pushIndent + "foreach ((ud_table_type ud_type, ushort[] ids) in ud_table_type_ids)\n");
+                Write(pushIndent + "{\n");
+                Write(pushIndent + "    for (int idx = 0; idx < ids.Length; idx++)\n");
+                Write(pushIndent + "    {\n");
+                Write(pushIndent + "        ushort id = ids[idx];\n");
+                Write(pushIndent + "        ud_lookup_table_type_dict.Add(id, ud_type);\n");
+                Write(pushIndent + "    }\n");
+                Write(pushIndent + "}\n");
+                pushIndent = "    ";
+                Write(pushIndent + "}\n");
                 ClearIndent();
-                PushIndent("    ");
-                Write("}}\r\n"); // end class InstructionTables
+                Write("}\n\n"); // end class InstructionTables
                 #endregion
-                Write("\r\n");
-                Write("#region Enums\r\n");
-                Write("\r\n");
-                Write("public enum ud_table_type\r\n");
-                Write("{{\r\n");
-                PushIndent("    ");
-                Write(String.Join(",\r\n", (from l in UdOpcodeTable.GetLabels()
-                                            select l).ToArray()));
-                Write("\r\n");
-                ClearIndent();
-                PushIndent("    ");
-                Write("}}\r\n");
-                Write("\r\n");
-                Write("public enum ud_mnemonic_code\r\n");
-                Write("{{\r\n");
-                PushIndent("    ");
-                Write(String.Join(",\r\n", (from m in GetMnemonicsList() select "UD_I" + m).ToArray()));
-                Write(",\r\nUD_MAX_MNEMONIC_CODE\r\n");
-                ClearIndent();
-                PushIndent("    ");
-                Write("}}\r\n");
-                Write("\r\n");
-                Write("#endregion\r\n");
-                ClearIndent();
+
+                Write("#region Enums");
+                Write("\n");
+                Write("public enum ud_table_type\n");
+                Write("{\n");
+                pushIndent = "    ";
+                Write(String.Join(",\n", (from l in UdOpcodeTable.GetLabels()
+                                            select string.Format(pushIndent + "[Description(\"{0}\")]\n" + pushIndent  + "{1}", l.desc, l.name)).ToArray()));
+                Write("\n");
+                Write("}\n");
+                Write("#endregion\n");
             }
         }
 
@@ -1284,10 +1271,8 @@ namespace SharpDisasm.Tests
         /// <param name="args"></param>
         public static void Write(string message, params object[] args)
         {
-            if (args == null || args.Length == 0)
-                Debug.Write(message);
-            else
-                Debug.Write(String.Format(message, args));
+            if (args == null || args.Length == 0) Debug.Write(message);
+            else Debug.Write(String.Format(message, args));
         }
 
         /// <summary>
@@ -1317,6 +1302,43 @@ namespace SharpDisasm.Tests
 
         #region XML Doc
         string xml = @"<?xml version=""1.0""?>
+
+<!--
+SharpDisasm (File: SharpDisasm\optable.xml)
+Copyright (c) 2014-2015 Justin Stenning
+http://spazzarama.com
+https://github.com/spazzarama/SharpDisasm
+https://sharpdisasm.codeplex.com/
+
+SharpDisasm is distributed under the 2-clause ""Simplified BSD License"".
+
+Portions of SharpDisasm are ported to C# from udis86 a C disassembler project
+also distributed under the terms of the 2-clause ""Simplified BSD License"" and
+Copyright (c) 2002-2012, Vivek Thampi <vivek.mt@gmail.com>
+All rights reserved.
+UDIS86: https://github.com/vmt/udis86
+
+Redistribution and use in source and binary forms, with or without modification, 
+are permitted provided that the following conditions are met:
+
+1. Redistributions of source code must retain the above copyright notice, 
+   this list of conditions and the following disclaimer.
+2. Redistributions in binary form must reproduce the above copyright notice, 
+   this list of conditions and the following disclaimer in the documentation 
+   and/or other materials provided with the distribution.
+
+THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS ""AS IS"" AND 
+ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED 
+WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE 
+DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT OWNER OR CONTRIBUTORS BE LIABLE FOR 
+ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES 
+(INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; 
+LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON 
+ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT 
+(INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS 
+SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+-->
+
 <?xml-stylesheet href=""optable.xsl"" type=""text/xsl""?>
 <x86optable>
 
@@ -5359,6 +5381,7 @@ namespace SharpDisasm.Tests
         <def>
             <opc>70</opc>
             <opr>Jb</opr>
+            <mode>def64</mode>
         </def>
         <def>
             <pfx>oso</pfx>
@@ -5373,6 +5396,7 @@ namespace SharpDisasm.Tests
         <def>
             <opc>71</opc>
             <opr>Jb</opr>
+            <mode>def64</mode>
         </def>
         <def>
             <pfx>oso</pfx>
@@ -5387,6 +5411,7 @@ namespace SharpDisasm.Tests
         <def>
             <opc>72</opc>
             <opr>Jb</opr>
+            <mode>def64</mode>
         </def>
         <def>
             <pfx>oso</pfx>
@@ -5401,6 +5426,7 @@ namespace SharpDisasm.Tests
         <def>
             <opc>73</opc>
             <opr>Jb</opr>
+            <mode>def64</mode>
         </def>
         <def>
             <pfx>oso</pfx>
@@ -5415,6 +5441,7 @@ namespace SharpDisasm.Tests
         <def>
             <opc>74</opc>
             <opr>Jb</opr>
+            <mode>def64</mode>
         </def>
         <def>
             <pfx>oso</pfx>
@@ -5429,6 +5456,7 @@ namespace SharpDisasm.Tests
         <def>
             <opc>75</opc>
             <opr>Jb</opr>
+            <mode>def64</mode>
         </def>
         <def>
             <pfx>oso</pfx>
@@ -5443,6 +5471,7 @@ namespace SharpDisasm.Tests
         <def>
             <opc>76</opc>
             <opr>Jb</opr>
+            <mode>def64</mode>
         </def>
         <def>
             <pfx>oso</pfx>
@@ -5457,6 +5486,7 @@ namespace SharpDisasm.Tests
         <def>
             <opc>77</opc>
             <opr>Jb</opr>
+            <mode>def64</mode>
         </def>
         <def>
             <pfx>oso</pfx>
@@ -5471,6 +5501,7 @@ namespace SharpDisasm.Tests
         <def>
             <opc>78</opc>
             <opr>Jb</opr>
+            <mode>def64</mode>
         </def>
         <def>
             <pfx>oso</pfx>
@@ -5485,6 +5516,7 @@ namespace SharpDisasm.Tests
         <def>
             <opc>79</opc>
             <opr>Jb</opr>
+            <mode>def64</mode>
         </def>
         <def>
             <pfx>oso</pfx>
@@ -5499,6 +5531,7 @@ namespace SharpDisasm.Tests
         <def>
             <opc>7a</opc>
             <opr>Jb</opr>
+            <mode>def64</mode>
         </def>
         <def>
             <pfx>oso</pfx>
@@ -5513,6 +5546,7 @@ namespace SharpDisasm.Tests
         <def>
             <opc>7b</opc>
             <opr>Jb</opr>
+            <mode>def64</mode>
         </def>
         <def>
             <pfx>oso</pfx>
@@ -5527,6 +5561,7 @@ namespace SharpDisasm.Tests
         <def>
             <opc>7c</opc>
             <opr>Jb</opr>
+            <mode>def64</mode>
         </def>
         <def>
             <pfx>oso</pfx>
@@ -5541,6 +5576,7 @@ namespace SharpDisasm.Tests
         <def>
             <opc>7d</opc>
             <opr>Jb</opr>
+            <mode>def64</mode>
         </def>
         <def>
             <pfx>oso</pfx>
@@ -5555,6 +5591,7 @@ namespace SharpDisasm.Tests
         <def>
             <opc>7e</opc>
             <opr>Jb</opr>
+            <mode>def64</mode>
         </def>
         <def>
             <pfx>oso</pfx>
@@ -5569,6 +5606,7 @@ namespace SharpDisasm.Tests
         <def>
             <opc>7f</opc>
             <opr>Jb</opr>
+            <mode>def64</mode>
         </def>
         <def>
             <pfx>oso</pfx>
@@ -5584,6 +5622,7 @@ namespace SharpDisasm.Tests
             <pfx>aso</pfx>
             <opc>e3 /a=16</opc>
             <opr>Jb</opr>
+            <mode>def64</mode>
         </def>
     </instruction>
 
@@ -5593,6 +5632,7 @@ namespace SharpDisasm.Tests
             <pfx>aso</pfx>
             <opc>e3 /a=32</opc>
             <opr>Jb</opr>
+            <mode>def64</mode>
         </def>
     </instruction>
 
@@ -5602,6 +5642,7 @@ namespace SharpDisasm.Tests
             <pfx>aso</pfx>
             <opc>e3 /a=64</opc>
             <opr>Jb</opr>
+            <mode>def64</mode>
         </def>
     </instruction>
 
@@ -7516,6 +7557,11 @@ namespace SharpDisasm.Tests
         <def>
             <pfx>oso</pfx>
             <opc>9d /m=!64 /o=16</opc>
+        </def>
+        <def>
+          <pfx>oso rexw</pfx>
+          <opc>9d /m=64 /o=16</opc>
+          <mode>def64</mode>
         </def>
     </instruction>
 
